@@ -89,6 +89,9 @@ public abstract class StabilityCheckTask : DefaultTask() {
   @get:Input
   public abstract val ignoreNonRegressiveChanges: Property<Boolean>
 
+  @get:Input
+  public abstract val allowMissingBaseline: Property<Boolean>
+
   init {
     group = "verification"
     description = "Check composable stability against reference file"
@@ -107,7 +110,7 @@ public abstract class StabilityCheckTask : DefaultTask() {
     }
 
     val stabilityDirectory = stabilityDir.get().asFile
-    if (!stabilityDirectory.exists()) {
+    if (!allowMissingBaseline.get() && !stabilityDirectory.exists()) {
       // Directory doesn't exist - no baseline has been created yet
       // This is expected for new modules or before the first stabilityDump
       logger.lifecycle(
@@ -126,7 +129,7 @@ public abstract class StabilityCheckTask : DefaultTask() {
     }
 
     val referenceFile = stabilityDirectory.resolve("$stabilityFileName.stability")
-    if (!referenceFile.exists()) {
+    if (!allowMissingBaseline.get() && !referenceFile.exists()) {
       // Directory exists but file doesn't - unusual but handle gracefully
       logger.lifecycle(
         "ℹ️  No stability baseline found for :$stabilityFileName, skipping stability check",
@@ -332,6 +335,10 @@ public abstract class StabilityCheckTask : DefaultTask() {
   }
 
   private fun parseStabilityFile(file: java.io.File): Map<String, StabilityEntry> {
+    if (!file.exists()) {
+      return emptyMap()
+    }
+
     val entries = mutableMapOf<String, StabilityEntry>()
 
     var currentQualifiedName: String? = null
