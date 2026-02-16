@@ -128,6 +128,40 @@ public class StabilitySettingsState : PersistentStateComponent<StabilitySettings
    */
   public var runtimeHintColorRGB: Int = (240 shl 16) or (198 shl 8) or 116
 
+  /**
+   * Enable the live recomposition heatmap feature.
+   * When enabled, CodeVision annotations show live recomposition counts from a connected device.
+   */
+  public var isHeatmapEnabled: Boolean = true
+
+  /**
+   * Auto-start the heatmap listener when the project opens
+   * (only if exactly one ADB device is connected).
+   */
+  public var heatmapAutoStart: Boolean = false
+
+  /**
+   * Show heatmap annotations even when the logcat listener is stopped.
+   * Previously accumulated data remains visible until cleared.
+   */
+  public var showHeatmapWhenStopped: Boolean = true
+
+  /**
+   * Recomposition count below this value is shown in green.
+   */
+  public var heatmapGreenThreshold: Int = 10
+
+  /**
+   * Recomposition count at or above this value is shown in red.
+   * Counts between greenThreshold and this value are shown in yellow.
+   */
+  public var heatmapRedThreshold: Int = 50
+
+  /**
+   * Maximum number of recent events to keep per composable.
+   */
+  public var heatmapMaxRecentEvents: Int = 50
+
   public override fun getState(): StabilitySettingsState = this
 
   public override fun loadState(state: StabilitySettingsState) {
@@ -144,11 +178,7 @@ public class StabilitySettingsState : PersistentStateComponent<StabilitySettings
       .filter { it.isNotEmpty() && !it.startsWith("#") } // Support comments
       .map { pattern ->
         try {
-          // Convert glob-style wildcards to regex
-          pattern
-            .replace(".", "\\.")
-            .replace("*", ".*")
-            .toRegex()
+          stabilityPatternToRegex(pattern)
         } catch (e: Exception) {
           // If regex is invalid, treat as literal string
           Regex.escape(pattern).toRegex()
@@ -183,11 +213,7 @@ public class StabilitySettingsState : PersistentStateComponent<StabilitySettings
       // Convert patterns to regex
       patterns.mapNotNull { pattern ->
         try {
-          // Convert glob-style wildcards to regex
-          pattern
-            .replace(".", "\\.")
-            .replace("*", ".*")
-            .toRegex()
+          stabilityPatternToRegex(pattern)
         } catch (e: Exception) {
           null // Skip invalid patterns
         }
@@ -202,4 +228,44 @@ public class StabilitySettingsState : PersistentStateComponent<StabilitySettings
       return service()
     }
   }
+}
+
+/**
+ * Converts a Compose stability configuration pattern to a [Regex].
+ *
+ * Follows the same semantics as the Compose compiler's stability configuration file:
+ * - `**` matches any sequence of characters including dots (multi-segment wildcard)
+ * - `*` matches any sequence of characters except dots (single-segment wildcard)
+ * - `.` is treated as a literal dot
+ * - All other characters are regex-escaped
+ *
+ * Examples:
+ * - `com.datalayer.*` matches `com.datalayer.Foo` but NOT `com.datalayer.sub.Foo`
+ * - `com.datalayer.**` matches `com.datalayer.Foo` AND `com.datalayer.sub.Foo`
+ */
+internal fun stabilityPatternToRegex(pattern: String): Regex {
+  val regex = buildString {
+    var i = 0
+    while (i < pattern.length) {
+      when {
+        pattern[i] == '*' && i + 1 < pattern.length && pattern[i + 1] == '*' -> {
+          append(".*")
+          i += 2
+        }
+        pattern[i] == '*' -> {
+          append("[^.]*")
+          i++
+        }
+        pattern[i] == '.' -> {
+          append("\\.")
+          i++
+        }
+        else -> {
+          append(Regex.escape(pattern[i].toString()))
+          i++
+        }
+      }
+    }
+  }
+  return regex.toRegex()
 }

@@ -20,6 +20,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.skydoves.compose.stability.idea.StabilityAnalysisConstants
 import com.skydoves.compose.stability.idea.StabilityConstants
+import com.skydoves.compose.stability.idea.containsTopLevelArrow
 import com.skydoves.compose.stability.idea.settings.StabilityProjectSettingsState
 import com.skydoves.compose.stability.idea.settings.StabilitySettingsState
 import org.jetbrains.kotlin.analysis.api.KaSession
@@ -128,7 +129,7 @@ internal class KtStabilityInferencer(
     // Function types are ALWAYS stable (captured values are checked separately in Compose compiler)
     val isFunctionType = nonNullableType.isFunctionType ||
       nonNullableType.isSuspendFunctionType ||
-      originalTypeString.contains("->")
+      originalTypeString.containsTopLevelArrow()
 
     if (isFunctionType) {
       // Check if it's a @Composable function - check BOTH annotations and string representation
@@ -163,7 +164,14 @@ internal class KtStabilityInferencer(
     // 4b. Double-check if the class symbol is actually a function type (FunctionN interface)
     // This catches cases like "@Composable ColumnScope.() -> Unit"
     val fqName = classSymbol.classId?.asSingleFqName()?.asString()
-    if (fqName != null && StabilityAnalysisConstants.isFunctionType(fqName)) {
+    val symbolSimpleName = classSymbol.name?.asString()
+    if ((fqName != null && StabilityAnalysisConstants.isFunctionType(fqName)) ||
+      (
+        fqName == null &&
+          symbolSimpleName != null &&
+          StabilityAnalysisConstants.isFunctionTypeBySimpleName(symbolSimpleName)
+        )
+    ) {
       // Check if it's a @Composable function - check BOTH original and non-nullable type
       val isComposable = type.annotations.any { annotation ->
         annotation.classId?.asSingleFqName()?.asString() ==
@@ -345,7 +353,9 @@ internal class KtStabilityInferencer(
     }
 
     // 11. Functions are stable (fallback check - should be caught in ktStabilityOf)
-    if (fqName != null && StabilityAnalysisConstants.isFunctionType(fqName)) {
+    if ((fqName != null && StabilityAnalysisConstants.isFunctionType(fqName)) ||
+      (fqName == null && StabilityAnalysisConstants.isFunctionTypeBySimpleName(simpleName))
+    ) {
       return KtStability.Certain(
         stable = true,
         reason = StabilityConstants.Messages.FUNCTION_STABLE,
@@ -512,6 +522,7 @@ internal class KtStabilityInferencer(
               )
             }
           }
+
           else -> propertyStability
         }
       }
@@ -769,6 +780,7 @@ internal class KtStabilityInferencer(
             null
           }
         }
+
         else -> {
           null
         }

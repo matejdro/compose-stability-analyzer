@@ -2,6 +2,67 @@
 
 All notable changes to the IntelliJ IDEA plugin will be documented in this file.
 
+## [0.7.0] - 2026-02-13
+
+### Added
+- **Recomposition Cascade Visualizer** (PR #119)
+  - Right-click any `@Composable` function and select "Analyze Recomposition Cascade"
+  - Traces downstream composables affected by recomposition in a tree view
+  - Shows stability status, summary statistics (total/skippable/unskippable/depth), and source navigation
+  - Cycle detection and depth limits prevent infinite analysis in recursive call graphs
+  - New "Cascade" tab in the tool window with dedicated toolbar (Refresh/Clear)
+  - K2-safe reference resolution using `runCatching` pattern
+  - Cancellation support via `ProgressIndicator.checkCanceled()`
+- **Live Recomposition Heatmap** (PR #120, #121)
+  - Reads `@TraceRecomposition` events from ADB logcat on a connected device
+  - Overlays real-time recomposition counts above composable functions in the editor
+  - Color-coded severity: green (< 10), yellow (10-50), red (50+) -- thresholds configurable
+  - Deterministic pre-baked inlay renderers eliminate flickering
+  - Click any recomposition count to open the Heatmap tab with detailed event logs and parameter change history
+  - Start/Stop toggle via tool window title bar button, Code menu, or editor right-click menu
+  - Multi-device support with device picker popup
+  - ADB path auto-detection: ANDROID_HOME, local.properties sdk.dir, common paths, PATH
+  - Heatmap enabled by default in plugin settings
+  - New "Heatmap" tab in the tool window with Refresh/Clear toolbar
+  - Configurable settings: severity thresholds, auto-start, show-when-stopped, max recent events
+- **Plugin Verifier integration** (PR #118)
+  - Extended IDE compatibility range to build 261 (IntelliJ IDEA 2026.1)
+
+### Improved
+- Tool window reorganized with three tabs: Explorer, Cascade, and Heatmap
+- Heatmap toggle button moved from Explorer toolbar to tool window title bar for visibility across all tabs
+- Cascade and Heatmap panels use simplified single-pane tree layout (no split details panel)
+
+## [0.6.7] - 2026-02-10
+
+### Added
+- **Android variant-specific stability tasks** (Issue #85, PR #101)
+  - Gradle plugin now creates per-variant tasks (e.g., `debugStabilityDump`, `releaseStabilityCheck`) for Android projects
+  - Allows running stability analysis on a single variant without compiling others
+  - Improved build cache compatibility
+- **Non-regressive change filtering for stability validation** (Issue #82, PR #104)
+  - New `ignoreNonRegressiveChanges` option to only flag stability regressions
+  - New `allowMissingBaseline` option to allow checks without an existing baseline file
+- **Stability configuration file wildcard support** (Issue #108, PR #110)
+  - Implemented `stabilityPatternToRegex` supporting `*` and `**` wildcard syntax
+  - Matches the official Compose compiler stability configuration format
+
+### Fixed
+- **`@StabilityInferred` annotation now supported in Gradle plugin** (Issue #102, PR #112)
+  - Cross-module classes with `@StabilityInferred(parameters=0)` now correctly treated as stable during `stabilityDump`/`stabilityCheck`
+  - Aligns Gradle plugin behavior with the IDEA plugin
+- **Skip analysis for `@NonRestartableComposable` and `@NonSkippableComposable`** (Issue #103, PR #111)
+  - These composable functions are now excluded from stability analysis as they are not subject to recomposition skipping
+- **Improved typealias handling** (Issue #16, PR #106)
+  - Typealias to function types (e.g., `typealias ComposableAction = @Composable () -> Unit`) now correctly recognized as stable
+  - Added typealias expansion support across PSI, K1, and K2 analysis paths with circular alias recursion guard
+
+### Improved
+- **Replaced internal `nj2k.descendantsOfType` with stable `PsiTreeUtil` API** (PR #109)
+  - Intelligent caching for typealias resolution with automatic expiration
+  - Streamlined function-type detection and composability checking logic
+  - Improved IDE responsiveness during analysis
+
 ## [0.6.4] - 2025-12-16
 
 ### Fixed

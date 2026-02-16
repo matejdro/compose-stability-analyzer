@@ -142,7 +142,6 @@ public class StabilityToolWindow(private val project: Project) {
     actionGroup.addSeparator()
     actionGroup.add(SettingsAction())
     actionGroup.add(GitHubAction())
-
     val toolbar = ActionManager.getInstance()
       .createActionToolbar(ActionPlaces.TOOLBAR, actionGroup, true)
     toolbar.targetComponent = tree
