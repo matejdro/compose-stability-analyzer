@@ -55,9 +55,11 @@ class StabilityComparisonTest {
 
   @Test
   fun testCompareStability_newFunctionWithRegressionFiltering() {
+    // Under regression filtering, a new composable is reported only when it introduces an unstable
+    // parameter, not because of its skippability (issue #192).
     val current = mapOf(
-      createEntry("com.example.New1", skippable = true),
-      createEntry("com.example.New2", skippable = false),
+      createEntry("com.example.New1", params = listOf(ParameterInfo("a", "A", "STABLE"))),
+      createEntry("com.example.New2", params = listOf(ParameterInfo("b", "B", "UNSTABLE"))),
     )
 
     val reference = emptyMap<String, StabilityEntry>()
@@ -67,6 +69,50 @@ class StabilityComparisonTest {
     assertEquals(1, differences.size)
     assertTrue(differences[0] is StabilityDifference.NewFunction)
     assertEquals("com.example.New2", (differences[0] as StabilityDifference.NewFunction).name)
+  }
+
+  // Issue #192: with ignoreNonRegressiveChanges, a new composable whose parameters are all stable
+  // must NOT be reported, even when it is non-restartable (restartable=false, skippable=false) or a
+  // @NonSkippableComposable (restartable=true, skippable=false). Only a genuinely unstable parameter
+  // is a regression.
+  @Test
+  fun testCompareStability_newStableNonSkippableFunctionsAreIgnored() {
+    val current = mapOf(
+      // Non-restartable composable with a stable parameter.
+      createEntry(
+        "com.example.NonRestartableDemo",
+        skippable = false,
+        restartable = false,
+        params = listOf(ParameterInfo("text", "kotlin.String", "STABLE")),
+      ),
+      // @NonSkippableComposable (restartable, opts out of skipping) with a stable parameter.
+      createEntry(
+        "com.example.NonSkippableDemo",
+        skippable = false,
+        restartable = true,
+        params = listOf(ParameterInfo("text", "kotlin.String", "STABLE")),
+      ),
+      // Non-restartable composable with no parameters (e.g. @ReadOnlyComposable / non-Unit return).
+      createEntry(
+        "com.example.readOnlyDemo",
+        skippable = false,
+        restartable = false,
+      ),
+      // Control: a new composable that actually introduces an unstable parameter is still reported.
+      createEntry(
+        "com.example.UnstableDemo",
+        skippable = false,
+        restartable = true,
+        params = listOf(ParameterInfo("user", "com.example.MutableUser", "UNSTABLE")),
+      ),
+    )
+
+    val reference = emptyMap<String, StabilityEntry>()
+
+    val differences = compareStability(current, reference, ignoreNonRegressiveChanges = true)
+
+    val reported = differences.filterIsInstance<StabilityDifference.NewFunction>().map { it.name }
+    assertEquals(listOf("com.example.UnstableDemo"), reported)
   }
 
   @Test

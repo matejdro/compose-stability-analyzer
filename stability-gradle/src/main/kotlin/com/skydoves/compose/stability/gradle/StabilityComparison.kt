@@ -23,9 +23,15 @@ internal fun compareStability(
 ): List<StabilityDifference> {
   val differences = mutableListOf<StabilityDifference>()
 
-  // Check for new functions
+  // Check for new functions. Under ignoreNonRegressiveChanges, a new composable is a regression
+  // only if it introduces an unstable parameter. Being non-restartable or opting out of skipping
+  // (@NonSkippableComposable) with all-stable parameters is not a regression, so it must not use the
+  // skippability-oriented isStable() here, which would wrongly report those stable composables
+  // (issue #192).
   current.keys.subtract(reference.keys).forEach { functionName ->
-    if (!ignoreNonRegressiveChanges || !current.getValue(functionName).isStable(forceStableTypes)) {
+    if (!ignoreNonRegressiveChanges ||
+      current.getValue(functionName).hasUnstableParameter(forceStableTypes)
+    ) {
       val parametersWithFixedStability = current.getValue(functionName).parameters
         .map { parameter ->
           parameter.copy(
@@ -138,6 +144,16 @@ private fun StabilityEntry.isStable(forceStableTypes: List<FqNameMatcher>): Bool
       parameters.all { it.isStable(forceStableTypes) } &&
       parameters.any { it.stability != "STABLE" }
     )
+
+/**
+ * Whether the composable has at least one unstable parameter, i.e. it introduces instability. This
+ * is the signal used to decide whether a *new* composable is a regression under
+ * `ignoreNonRegressiveChanges`, independently of skippability/restartability: a composable whose
+ * parameters are all stable is not a regression even when it is non-restartable or opts out of
+ * skipping (issue #192). A parameterless composable introduces no instability.
+ */
+private fun StabilityEntry.hasUnstableParameter(forceStableTypes: List<FqNameMatcher>): Boolean =
+  parameters.any { !it.isStable(forceStableTypes) }
 
 private fun ParameterInfo.isStable(forceStableTypes: List<FqNameMatcher>): Boolean =
   stability == "STABLE" ||
