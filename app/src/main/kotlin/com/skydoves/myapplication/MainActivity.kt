@@ -361,6 +361,11 @@ fun ActionButton(text: String, onClick: () -> Unit) {
   }
 }
 
+@Composable
+fun returnValue(text: String): String {
+  return text
+}
+
 // ============================================================================
 // Preview Composables - Excluded from Stability Validation
 // ============================================================================

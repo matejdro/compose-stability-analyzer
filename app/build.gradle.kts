@@ -64,6 +64,11 @@ composeStabilityAnalyzer {
   traceAll {
     enabled.set(true)
   }
+
+  stabilityValidation {
+    ignoreNonRegressiveChanges = true
+    allowMissingBaseline = true
+  }
 }
 
 dependencies {
